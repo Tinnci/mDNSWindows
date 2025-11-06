@@ -596,10 +596,20 @@ mDNSexport void	mDNSPlatformStrCopy( void *inDst, const void *inSrc )
 	check( inSrc );
 	check( inDst );
 	
-	// Use strcpy_s for bounds-checked string copy to prevent buffer overruns
-	// Since the API doesn't provide destination buffer size, we use a defensive
-	// maximum size that should accommodate all mDNS string use cases.
-	// MAX_DOMAIN_NAME is 256, but we use 1024 for extra safety margin.
+	// SECURITY NOTE: This function interface does not provide the destination buffer size,
+	// which makes it inherently unsafe. Callers MUST ensure the destination buffer is large
+	// enough to hold the source string. We use strcpy_s with a defensive maximum size to
+	// add bounds checking and prevent buffer overruns.
+	//
+	// The defensive maxSize is set to 1024 bytes (4x MAX_DOMAIN_NAME of 256 bytes), which
+	// should accommodate all mDNS string use cases. strcpy_s will perform runtime validation
+	// and abort if the destination buffer is smaller than maxSize, preventing silent buffer
+	// corruption at the cost of a fail-fast crash.
+	//
+	// This is a significant security improvement over the original unbounded strcpy(), which
+	// would silently overflow buffers. However, callers should prefer mDNSPlatformStrLCopy()
+	// when possible, as it accepts an explicit buffer size parameter.
+	
 	const size_t maxSize = 1024;
 	size_t srcLen = strlen((const char*)inSrc);
 	
@@ -609,8 +619,8 @@ mDNSexport void	mDNSPlatformStrCopy( void *inDst, const void *inSrc )
 	}
 	else
 	{
-		// Source string is too long, this indicates a programming error
-		// Truncate to prevent buffer overrun
+		// Source string is too long, this indicates a programming error.
+		// Truncate to prevent buffer overrun.
 		strncpy_s((char*)inDst, maxSize, (const char*)inSrc, _TRUNCATE);
 	}
 }
