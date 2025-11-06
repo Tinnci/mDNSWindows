@@ -1,4 +1,6 @@
-# mDNSWindows
+# mDNSWindows (Tinnci Fork)
+
+This is **Tinnci's development fork** of the [ETCLabs/mDNSWindows](https://github.com/ETCLabs/mDNSWindows) project. 
 
 mDNSWindows is a fork of Apple's mDNSResponder code to improve and maintain
 Windows support. See [APPLE_README.txt](./APPLE_README.txt) for the original
@@ -14,13 +16,14 @@ the modification.
 
 ## Repository Structure
 
-This repository is organized as follows:
+### Upstream vs. Fork
 
-- **Upstream Repository:** [ETCLabs/mDNSWindows](https://github.com/ETCLabs/mDNSWindows)  
-  Official ETC Labs project repository for Windows mDNS support.
+- **Upstream (Official):** [ETCLabs/mDNSWindows](https://github.com/ETCLabs/mDNSWindows)  
+  The official ETC Labs project repository for Windows mDNS support.
 
-- **Development Fork:** [Tinnci/mDNSWindows](https://github.com/Tinnci/mDNSWindows)  
-  Fork used for feature development and testing. Changes are developed and tested here before being contributed back upstream.
+- **This Fork:** [Tinnci/mDNSWindows](https://github.com/Tinnci/mDNSWindows)  
+  **Development fork for feature development and experimentation.** Not affiliated with ETCLabs.
+  Changes are developed and tested here independently.
 
 ### Git Remote Configuration
 
@@ -54,6 +57,29 @@ cmake --build . --config Release
 
 Supported architectures: `Win32` (x86) and `x64`
 
+## Feature Enhancements (This Fork)
+
+This fork includes the following enhancements beyond the official ETCLabs/mDNSWindows:
+
+### 1. Shared Multicast Socket Support (SO_REUSEADDR)
+- **Purpose:** Enable mDNSResponder to coexist on UDP/5353 with other Windows services (Dnscache, Chrome, etc.)
+- **Implementation:** 
+  - Modified `SetupSocket()` to bind multicast sockets to `INADDR_ANY` instead of specific interface addresses
+  - Enhanced `CanReceiveUnicast()` to use `SO_REUSEADDR` socket option
+  - Maintains per-interface multicast group memberships for proper mDNS semantics
+- **Files Modified:** `mDNSWindows/mDNSWin32.c`
+
+### 2. MSVC Compiler Enhancements
+- Added `/utf-8` flag for UTF-8 source encoding support
+- Suppressed CRT deprecation warnings (`_CRT_SECURE_NO_WARNINGS`)
+- Improved Windows compatibility flags
+
+### 3. GitHub Actions CI/CD
+- Automated builds for Win32 (x86) and x64 architectures
+- Both Debug and Release configurations
+- Runs on every push to `main` and pull requests
+- Build artifacts retained for 7 days
+
 ## Continuous Integration
 
 This project uses GitHub Actions to automatically build and test on every push to `main` and pull requests.
@@ -63,9 +89,21 @@ This project uses GitHub Actions to automatically build and test on every push t
 - Tests both Debug and Release configurations
 - Artifacts are retained for 7 days
 
-## About this ETCLabs Project
+## About this Fork
+
+This is an **independent development fork** of ETCLabs/mDNSWindows, not officially affiliated with ETC Labs. 
+It is used for experimental feature development and testing Windows mDNS/DNS-SD improvements.
+
+### Relationship to ETCLabs
+
+- This fork is based on the official [ETCLabs/mDNSWindows](https://github.com/ETCLabs/mDNSWindows) project
+- This fork maintains its own development branch and CI/CD pipeline
+- Features and fixes developed here may be contributed back to the upstream project
+- This fork operates independently and is not supported by ETC Labs
+
+## About the Official ETCLabs Project
 
 mDNSWindows is official, open-source software developed by ETC employees and is
 designed to interact with ETC products. For challenges using, integrating,
-compiling, or modifying this software, we encourage posting on the
-[issues page](https://github.com/ETCLabs/mDNSWindows/issues) of this project.
+compiling, or modifying the official upstream project, please visit the
+[ETCLabs issues page](https://github.com/ETCLabs/mDNSWindows/issues).
