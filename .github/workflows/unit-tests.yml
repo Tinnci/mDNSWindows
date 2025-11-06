@@ -22,7 +22,7 @@ jobs:
     - name: Setup Visual Studio
       uses: microsoft/setup-msbuild@v2
       with:
-        vs-version: '17.x'
+        vs-version: '17.0'
     
     - name: Create build directory
       run: mkdir build_test_${{ matrix.arch }}
