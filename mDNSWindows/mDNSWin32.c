@@ -2977,12 +2977,14 @@ mDNSlocal mStatus	SetupSocket( mDNS * const inMDNS, const struct sockaddr *inAdd
 		struct ip_mreq			mreqv4;
 		
 		// Bind the socket to the desired port
+		// For multicast sockets (port != 0), bind to INADDR_ANY to allow multiple processes
+		// to share the same multicast port using SO_REUSEADDR semantics
 		
 		ipv4.NotAnInteger 	= ( (const struct sockaddr_in *) inAddr )->sin_addr.s_addr;
 		mDNSPlatformMemZero( &sa4, sizeof( sa4 ) );
 		sa4.sin_family 		= AF_INET;
 		sa4.sin_port 		= port.NotAnInteger;
-		sa4.sin_addr.s_addr	= ipv4.NotAnInteger;
+		sa4.sin_addr.s_addr	= !mDNSIPPortIsZero( port ) ? htonl(INADDR_ANY) : ipv4.NotAnInteger;
 		
 		err = bind( sock, (struct sockaddr *) &sa4, sizeof( sa4 ) );
 		check_translated_errno( err == 0, errno_compat(), kUnknownErr );
@@ -3037,12 +3039,14 @@ mDNSlocal mStatus	SetupSocket( mDNS * const inMDNS, const struct sockaddr *inAdd
 		sa6p = (struct sockaddr_in6 *) inAddr;
 		
 		// Bind the socket to the desired port
+		// For multicast sockets (port != 0), bind to in6addr_any to allow multiple processes
+		// to share the same multicast port using SO_REUSEADDR semantics
 		
 		mDNSPlatformMemZero( &sa6, sizeof( sa6 ) );
 		sa6.sin6_family		= AF_INET6;
 		sa6.sin6_port		= port.NotAnInteger;
 		sa6.sin6_flowinfo	= 0;
-		sa6.sin6_addr		= sa6p->sin6_addr;
+		sa6.sin6_addr		= !mDNSIPPortIsZero( port ) ? in6addr_any : sa6p->sin6_addr;
 		sa6.sin6_scope_id	= sa6p->sin6_scope_id;
 		
 		err = bind( sock, (struct sockaddr *) &sa6, sizeof( sa6 ) );
