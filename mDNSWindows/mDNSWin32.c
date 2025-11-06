@@ -2436,7 +2436,7 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	mDNSBool					foundUnicastSock4DestAddr;
 	mDNSBool					foundUnicastSock6DestAddr;
 	
-	dlog( kDebugLevelTrace, DEBUG_NAME "setting up interface list\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: BEGIN initialization\n" );
 	check( inMDNS );
 	check( inMDNS->p );
 	
@@ -2450,17 +2450,21 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	
 	// Tear down any existing interfaces that may be set up.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Tearing down existing interfaces\n" );
 	TearDownInterfaceList( inMDNS );
 
 	// Set up the name of this machine.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Setting up machine name\n" );
 	err = SetupName( inMDNS );
 	check_noerr( err );
 
 	// Set up IPv4 interface(s). We have to set up IPv4 first so any IPv6 interface with an IPv4-routable address
 	// can refer to the IPv4 interface when it registers to allow DNS AAAA records over the IPv4 interface.
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Calling getifaddrs() to enumerate network adapters\n" );
 	err = getifaddrs( &addrs );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: getifaddrs() returned err=%d, addrs=%p\n", err, addrs );
 	require_noerr( err, exit );
 	
 	loopbackv4	= NULL;
@@ -2471,25 +2475,37 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	flagTest = IFF_UP | IFF_MULTICAST;
 	
 #if( MDNS_WINDOWS_ENABLE_IPV4 )
-	for( p = addrs; p; p = p->ifa_next )
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Processing IPv4 interfaces\n" );
 	{
-		if( !p->ifa_addr || ( p->ifa_addr->sa_family != AF_INET ) || ( ( p->ifa_flags & flagMask ) != flagTest ) )
+		int interfaceCount = 0;
+		for( p = addrs; p; p = p->ifa_next )
 		{
-			continue;
-		}
-		if( p->ifa_flags & IFF_LOOPBACK )
-		{
-			if( !loopbackv4 )
+			interfaceCount++;
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Checking adapter #%d: name='%s'\n",
+				  interfaceCount, p->ifa_name ? p->ifa_name : "(null)" );
+			
+			if( !p->ifa_addr || ( p->ifa_addr->sa_family != AF_INET ) || ( ( p->ifa_flags & flagMask ) != flagTest ) )
 			{
-				loopbackv4 = p;
+				continue;
 			}
-			continue;
-		}
-		dlog( kDebugLevelVerbose, DEBUG_NAME "Interface %40s (0x%08X) %##a\n", 
-			p->ifa_name ? p->ifa_name : "<null>", p->ifa_extra.index, p->ifa_addr );
-		
-		err = SetupInterface( inMDNS, p, &ifd );
-		require_noerr( err, exit );
+			if( p->ifa_flags & IFF_LOOPBACK )
+			{
+				if( !loopbackv4 )
+				{
+					loopbackv4 = p;
+				}
+				continue;
+			}
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Setting up IPv4 interface '%s' (0x%08X)\n",
+				  p->ifa_name ? p->ifa_name : "(null)", p->ifa_extra.index );
+			dlog( kDebugLevelVerbose, DEBUG_NAME "Interface %40s (0x%08X) %##a\n", 
+				p->ifa_name ? p->ifa_name : "<null>", p->ifa_extra.index, p->ifa_addr );
+			
+			err = SetupInterface( inMDNS, p, &ifd );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: SetupInterface returned err=%d for '%s'\n",
+				  err, p->ifa_name ? p->ifa_name : "(null)" );
+			require_noerr( err, exit );
+	}
 
 		// If this guy is point-to-point (ifd->interfaceInfo.McastTxRx == 0 ) we still want to
 		// register him, but we also want to note that we haven't found a v4 interface
@@ -3502,13 +3518,18 @@ mDNSlocal int	getifaddrs( struct ifaddrs **outAddrs )
 {
 	int		err;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: BEGIN - enumerating network adapters\n" );
+	
 #if( MDNS_WINDOWS_USE_IPV6_IF_ADDRS )
 	
 	// Try to the load the GetAdaptersAddresses function from the IP Helpers DLL. This API is only available on Windows
 	// XP or later. Looking up the symbol at runtime allows the code to still work on older systems without that API.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Using IPv6-capable adapter enumeration\n" );
+	
 	if( !gIPHelperLibraryInstance )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Loading Iphlpapi.dll\n" );
 		gIPHelperLibraryInstance = LoadLibrary( TEXT( "Iphlpapi" ) );
 		if( gIPHelperLibraryInstance )
 		{
@@ -3531,18 +3552,27 @@ mDNSlocal int	getifaddrs( struct ifaddrs **outAddrs )
 
 	if( !gGetAdaptersAddressesFunctionPtr || ( ( ( err = getifaddrs_ipv6( outAddrs ) ) != mStatus_NoError ) || ( ( outAddrs != NULL ) && ( *outAddrs == NULL ) ) ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Falling back to IPv4-only enumeration\n" );
 		err = getifaddrs_ipv4( outAddrs );
+		dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv4 returned err=%d\n", err );
 		require_noerr( err, exit );
+	}
+	else
+	{
+		dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv6 succeeded, err=%d\n", err );
 	}
 	
 #else
 
+	dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Using IPv4-only enumeration (no IPv6 support compiled)\n" );
 	err = getifaddrs_ipv4( outAddrs );
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv4 returned err=%d\n", err );
 	require_noerr( err, exit );
 
 #endif
 
 exit:
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: END - returning err=%d, addrs=%p\n", err, outAddrs ? *outAddrs : NULL );
 	return( err );
 }
 
