@@ -58,3 +58,10 @@ Thumbs.db
 ##########
 _codeql_detected_source_root
 
+# Windows Event Log generated files #
+######################################
+mDNSWindows/SystemService/EventLog.h
+mDNSWindows/SystemService/EventLog.rc
+mDNSWindows/SystemService/MSG*.bin
+
+
