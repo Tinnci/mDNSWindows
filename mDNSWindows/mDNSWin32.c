@@ -2245,14 +2245,17 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	DWORD		namelen;
 	BOOL		ok;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: BEGIN - setting up nice name\n" );
 	check( inMDNS );
 	
 	// Set up the nice name.
 	utf8[0] = '\0';
 
 	// First try and open the registry key that contains the computer description value
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Opening registry key for computer description\n" );
 	s = TEXT("SYSTEM\\CurrentControlSet\\Services\\lanmanserver\\parameters");
 	err = RegOpenKeyEx( HKEY_LOCAL_MACHINE, s, 0, KEY_READ, &descKey);
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: RegOpenKeyEx returned err=%d\n", err );
 	check_translated_errno( err == 0, errno_compat(), kNameErr );
 
 	if ( !err )
@@ -2260,12 +2263,17 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 		TCHAR	desc[256];
 		DWORD	descSize = sizeof( desc );
 
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Querying computer description (buffer size=%d bytes)\n", descSize );
 		// look for the computer description
 		err = RegQueryValueEx( descKey, TEXT("srvcomment"), 0, NULL, (LPBYTE) &desc, &descSize);
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: RegQueryValueEx returned err=%d, descSize=%d\n", err, descSize );
 		
 		if ( !err )
 		{
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Converting TCHAR description to UTF8\n" );
 			err = TCHARtoUTF8( desc, utf8, sizeof( utf8 ) );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: TCHARtoUTF8 returned err=%d, utf8 len=%d\n", 
+				  err, utf8[0] ? (int)strlen(utf8) : 0 );
 		}
 
 		if ( err )
@@ -2279,15 +2287,22 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	{
 		TCHAR hostname[256];
 		
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Getting computer hostname (buffer size=%d TCHARs)\n", 
+			  sizeof(hostname) / sizeof(TCHAR) );
 		namelen = sizeof( hostname ) / sizeof( TCHAR );
 
 		ok = GetComputerNameExW( ComputerNamePhysicalDnsHostname, hostname, &namelen );
 		err = translate_errno( ok, (mStatus) GetLastError(), kNameErr );
+		dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: GetComputerNameExW returned ok=%d err=%d namelen=%d\n", 
+			  ok, err, namelen );
 		check_noerr( err );
 		
 		if( !err )
 		{
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Converting TCHAR hostname to UTF8\n" );
 			err = TCHARtoUTF8( hostname, utf8, sizeof( utf8 ) );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: TCHARtoUTF8 returned err=%d, utf8 len=%d\n",
+				  err, utf8[0] ? (int)strlen(utf8) : 0 );
 		}
 
 		if ( err )
@@ -2299,12 +2314,14 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	// if we can't get the hostname
 	if ( err || ( utf8[ 0 ] == '\0' ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Using default name '%s'\n", kMDNSDefaultName );
 		// Invalidate name so fall back to a default name.
 		
 		strcpy_s( utf8, sizeof( utf8 ), kMDNSDefaultName );
 	}
 
-	utf8[ sizeof( utf8 ) - 1 ]	= '\0';	
+	utf8[ sizeof( utf8 ) - 1 ]	= '\0';
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: Final nice name='%s' len=%d\n", utf8, (int)strlen(utf8) );	
 	inMDNS->nicelabel.c[ 0 ]	= (mDNSu8) (strlen( utf8 ) < MAX_DOMAIN_LABEL ? strlen( utf8 ) : MAX_DOMAIN_LABEL);
 	memcpy( &inMDNS->nicelabel.c[ 1 ], utf8, inMDNS->nicelabel.c[ 0 ] );
 	
@@ -2355,34 +2372,42 @@ mDNSlocal mStatus	SetupHostName( mDNS * const inMDNS )
 	domainlabel tempLabel;
 	BOOL		ok;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: BEGIN - setting up host name\n" );
 	check( inMDNS );
 
 	// Set up the nice name.
 	tempString[ 0 ] = '\0';
 
 	// use the hostname of the machine
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Getting computer hostname (buffer size=%d bytes)\n", sizeof(tempString) );
 	tempStringLen = sizeof( tempString );
 	ok = GetComputerNameExA( ComputerNamePhysicalDnsHostname, tempString, &tempStringLen );
 	err = translate_errno( ok, (mStatus) GetLastError(), kNameErr );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: GetComputerNameExA returned ok=%d err=%d len=%d\n", 
+		  ok, err, tempStringLen );
 	check_noerr( err );
 
 	// if we can't get the hostname
 	if( err || ( tempString[ 0 ] == '\0' ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Using default name '%s'\n", kMDNSDefaultName );
 		// Invalidate name so fall back to a default name.
 		
 		strcpy_s( tempString, sizeof( tempString ), kMDNSDefaultName );
 	}
 
 	tempString[ sizeof( tempString ) - 1 ] = '\0';
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: Host name string='%s' len=%d\n", tempString, (int)strlen(tempString) );
 	tempLabel.c[ 0 ] = (mDNSu8) (strlen( tempString ) < MAX_DOMAIN_LABEL ? strlen( tempString ) : MAX_DOMAIN_LABEL );
 	memcpy( &tempLabel.c[ 1 ], tempString, tempLabel.c[ 0 ] );
 	
 	// Set up the host name.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Converting to RFC1034 host label\n" );
 	ConvertUTF8PstringToRFC1034HostLabel( tempLabel.c, &inMDNS->hostlabel );
 	if( inMDNS->hostlabel.c[ 0 ] == 0 )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: No valid RFC1034 characters, using default\n" );
 		// Nice name has no characters that are representable as an RFC1034 name (e.g. Japanese) so use the default.
 		
 		MakeDomainLabelFromLiteralString( &inMDNS->hostlabel, kMDNSDefaultName );
@@ -2392,7 +2417,8 @@ mDNSlocal mStatus	SetupHostName( mDNS * const inMDNS )
 	
 	mDNS_SetFQDN( inMDNS );
 	
-	dlog( kDebugLevelInfo, DEBUG_NAME "host name \"%.*s\"\n", inMDNS->hostlabel.c[ 0 ], &inMDNS->hostlabel.c[ 1 ] );
+	dlog( kDebugLevelInfo, DEBUG_NAME "SetupHostName: Final host name=\"%.*s\"\n", inMDNS->hostlabel.c[ 0 ], &inMDNS->hostlabel.c[ 1 ] );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: END - returning err=%d\n", err );
 	
 	return( err );
 }
@@ -2405,14 +2431,20 @@ mDNSlocal mStatus	SetupName( mDNS * const inMDNS )
 {
 	mStatus		err = 0;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: BEGIN - setting up machine name\n" );
 	check( inMDNS );
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupName: Calling SetupNiceName()\n" );
 	err = SetupNiceName( inMDNS );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: SetupNiceName() returned err=%d\n", err );
 	check_noerr( err );
 
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupName: Calling SetupHostName()\n" );
 	err = SetupHostName( inMDNS );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: SetupHostName() returned err=%d\n", err );
 	check_noerr( err );
 
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: END - returning err=%d\n", err );
 	return err;
 }
 
@@ -2436,7 +2468,7 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	mDNSBool					foundUnicastSock4DestAddr;
 	mDNSBool					foundUnicastSock6DestAddr;
 	
-	dlog( kDebugLevelTrace, DEBUG_NAME "setting up interface list\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: BEGIN initialization\n" );
 	check( inMDNS );
 	check( inMDNS->p );
 	
@@ -2450,17 +2482,21 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	
 	// Tear down any existing interfaces that may be set up.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Tearing down existing interfaces\n" );
 	TearDownInterfaceList( inMDNS );
 
 	// Set up the name of this machine.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Setting up machine name\n" );
 	err = SetupName( inMDNS );
 	check_noerr( err );
 
 	// Set up IPv4 interface(s). We have to set up IPv4 first so any IPv6 interface with an IPv4-routable address
 	// can refer to the IPv4 interface when it registers to allow DNS AAAA records over the IPv4 interface.
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Calling getifaddrs() to enumerate network adapters\n" );
 	err = getifaddrs( &addrs );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: getifaddrs() returned err=%d, addrs=%p\n", err, addrs );
 	require_noerr( err, exit );
 	
 	loopbackv4	= NULL;
@@ -2471,25 +2507,37 @@ mStatus	SetupInterfaceList( mDNS * const inMDNS )
 	flagTest = IFF_UP | IFF_MULTICAST;
 	
 #if( MDNS_WINDOWS_ENABLE_IPV4 )
-	for( p = addrs; p; p = p->ifa_next )
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Processing IPv4 interfaces\n" );
 	{
-		if( !p->ifa_addr || ( p->ifa_addr->sa_family != AF_INET ) || ( ( p->ifa_flags & flagMask ) != flagTest ) )
+		int interfaceCount = 0;
+		for( p = addrs; p; p = p->ifa_next )
 		{
-			continue;
-		}
-		if( p->ifa_flags & IFF_LOOPBACK )
-		{
-			if( !loopbackv4 )
+			interfaceCount++;
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterfaceList: Checking adapter #%d: name='%s'\n",
+				  interfaceCount, p->ifa_name ? p->ifa_name : "(null)" );
+			
+			if( !p->ifa_addr || ( p->ifa_addr->sa_family != AF_INET ) || ( ( p->ifa_flags & flagMask ) != flagTest ) )
 			{
-				loopbackv4 = p;
+				continue;
 			}
-			continue;
-		}
-		dlog( kDebugLevelVerbose, DEBUG_NAME "Interface %40s (0x%08X) %##a\n", 
-			p->ifa_name ? p->ifa_name : "<null>", p->ifa_extra.index, p->ifa_addr );
-		
-		err = SetupInterface( inMDNS, p, &ifd );
-		require_noerr( err, exit );
+			if( p->ifa_flags & IFF_LOOPBACK )
+			{
+				if( !loopbackv4 )
+				{
+					loopbackv4 = p;
+				}
+				continue;
+			}
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: Setting up IPv4 interface '%s' (0x%08X)\n",
+				  p->ifa_name ? p->ifa_name : "(null)", p->ifa_extra.index );
+			dlog( kDebugLevelVerbose, DEBUG_NAME "Interface %40s (0x%08X) %##a\n", 
+				p->ifa_name ? p->ifa_name : "<null>", p->ifa_extra.index, p->ifa_addr );
+			
+			err = SetupInterface( inMDNS, p, &ifd );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterfaceList: SetupInterface returned err=%d for '%s'\n",
+				  err, p->ifa_name ? p->ifa_name : "(null)" );
+			require_noerr( err, exit );
+	}
 
 		// If this guy is point-to-point (ifd->interfaceInfo.McastTxRx == 0 ) we still want to
 		// register him, but we also want to note that we haven't found a v4 interface
@@ -2688,7 +2736,7 @@ mStatus	TearDownInterfaceList( mDNS * const inMDNS )
 	mDNSInterfaceData **		p;
 	mDNSInterfaceData *		ifd;
 	
-	dlog( kDebugLevelTrace, DEBUG_NAME "tearing down interface list\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "TearDownInterfaceList: BEGIN - tearing down interface list\n" );
 	check( inMDNS );
 	check( inMDNS->p );
 
@@ -2738,7 +2786,9 @@ mDNSlocal mStatus	SetupInterface( mDNS * const inMDNS, const struct ifaddrs *inI
 	mStatus					err;
 	
 	ifd = NULL;
-	dlog( kDebugLevelTrace, DEBUG_NAME "setting up interface\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterface: interface='%s' index=%u\n",
+		  inIFA->ifa_name ? inIFA->ifa_name : "(null)", 
+		  ( unsigned int ) inIFA->ifa_extra.index );
 	check( inMDNS );
 	check( inMDNS->p );
 	check( inIFA );
@@ -2755,6 +2805,20 @@ mDNSlocal mStatus	SetupInterface( mDNS * const inMDNS, const struct ifaddrs *inI
 	ifd->sock.m		= inMDNS;
 	ifd->index		= inIFA->ifa_extra.index;
 	ifd->scopeID	= inIFA->ifa_extra.index;
+	
+	// Enhanced logging for debugging buffer issues
+	if( inIFA->ifa_name )
+	{
+		size_t nameLen = strlen( inIFA->ifa_name );
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterface: copying interface name len=%d (buffer size=%d)\n",
+			  ( int ) nameLen, ( int ) sizeof( ifd->name ) );
+		if( nameLen >= sizeof( ifd->name ) )
+		{
+			dlog( kDebugLevelAlert, DEBUG_NAME "SetupInterface: interface name too long! len=%d >= buffer=%d\n",
+				  ( int ) nameLen, ( int ) sizeof( ifd->name ) );
+		}
+	}
+	
 	check( strlen( inIFA->ifa_name ) < sizeof( ifd->name ) );
 	strncpy( ifd->name, inIFA->ifa_name, sizeof( ifd->name ) - 1 );
 	ifd->name[ sizeof( ifd->name ) - 1 ] = '\0';
@@ -3486,13 +3550,18 @@ mDNSlocal int	getifaddrs( struct ifaddrs **outAddrs )
 {
 	int		err;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: BEGIN - enumerating network adapters\n" );
+	
 #if( MDNS_WINDOWS_USE_IPV6_IF_ADDRS )
 	
 	// Try to the load the GetAdaptersAddresses function from the IP Helpers DLL. This API is only available on Windows
 	// XP or later. Looking up the symbol at runtime allows the code to still work on older systems without that API.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Using IPv6-capable adapter enumeration\n" );
+	
 	if( !gIPHelperLibraryInstance )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Loading Iphlpapi.dll\n" );
 		gIPHelperLibraryInstance = LoadLibrary( TEXT( "Iphlpapi" ) );
 		if( gIPHelperLibraryInstance )
 		{
@@ -3515,18 +3584,27 @@ mDNSlocal int	getifaddrs( struct ifaddrs **outAddrs )
 
 	if( !gGetAdaptersAddressesFunctionPtr || ( ( ( err = getifaddrs_ipv6( outAddrs ) ) != mStatus_NoError ) || ( ( outAddrs != NULL ) && ( *outAddrs == NULL ) ) ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Falling back to IPv4-only enumeration\n" );
 		err = getifaddrs_ipv4( outAddrs );
+		dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv4 returned err=%d\n", err );
 		require_noerr( err, exit );
+	}
+	else
+	{
+		dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv6 succeeded, err=%d\n", err );
 	}
 	
 #else
 
+	dlog( kDebugLevelVerbose, DEBUG_NAME "getifaddrs: Using IPv4-only enumeration (no IPv6 support compiled)\n" );
 	err = getifaddrs_ipv4( outAddrs );
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: getifaddrs_ipv4 returned err=%d\n", err );
 	require_noerr( err, exit );
 
 #endif
 
 exit:
+	dlog( kDebugLevelTrace, DEBUG_NAME "getifaddrs: END - returning err=%d, addrs=%p\n", err, outAddrs ? *outAddrs : NULL );
 	return( err );
 }
 
@@ -5043,7 +5121,7 @@ IsWOMPEnabled( mDNS * const m )
 mDNSlocal mDNSu8
 IsWOMPEnabledForAdapter( const char * adapterName )
 {
-	char						fileName[80];
+	char						fileName[256];	// Increased from 80 to 256 to prevent stack buffer overflow
 	NDIS_OID					oid;
     DWORD						count;
     HANDLE						handle	= INVALID_HANDLE_VALUE;
@@ -5053,12 +5131,24 @@ IsWOMPEnabledForAdapter( const char * adapterName )
 
 	require_action( adapterName != NULL, exit, ok = FALSE );
 
-	dlog( kDebugLevelTrace, DEBUG_NAME "IsWOMPEnabledForAdapter: %s\n", adapterName );
+	// Enhanced logging for debugging secondary overflow (offset 0x51875)
+	dlog( kDebugLevelTrace, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter='%s' len=%d\n", 
+		  adapterName, ( int ) strlen( adapterName ) );
 	
     // Construct a device name to pass to CreateFile
+	// fileName buffer is 256 bytes: DEVICE_PREFIX (4 bytes) + adapterName (max 251 bytes)
 
 	strncpy_s( fileName, sizeof( fileName ), DEVICE_PREFIX, strlen( DEVICE_PREFIX ) );
-	strcat_s( fileName, sizeof( fileName ), adapterName );
+	err = strcat_s( fileName, sizeof( fileName ), adapterName );
+	if( err != 0 )
+	{
+		dlog( kDebugLevelAlert, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter name too long for device path (len=%d)\n",
+			  ( int ) strlen( adapterName ) );
+		ok = FALSE;
+		goto exit;
+	}
+	dlog( kDebugLevelVerbose, DEBUG_NAME "IsWOMPEnabledForAdapter: constructed device path='%s' len=%d\n",
+		  fileName, ( int ) strlen( fileName ) );
     handle = CreateFileA( fileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, INVALID_HANDLE_VALUE );
 	require_action ( handle != INVALID_HANDLE_VALUE, exit, ok = FALSE );
 
