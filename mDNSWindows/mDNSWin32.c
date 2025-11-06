@@ -5043,7 +5043,7 @@ IsWOMPEnabled( mDNS * const m )
 mDNSlocal mDNSu8
 IsWOMPEnabledForAdapter( const char * adapterName )
 {
-	char						fileName[80];
+	char						fileName[256];	// Increased from 80 to 256 to prevent stack buffer overflow
 	NDIS_OID					oid;
     DWORD						count;
     HANDLE						handle	= INVALID_HANDLE_VALUE;
@@ -5058,7 +5058,13 @@ IsWOMPEnabledForAdapter( const char * adapterName )
     // Construct a device name to pass to CreateFile
 
 	strncpy_s( fileName, sizeof( fileName ), DEVICE_PREFIX, strlen( DEVICE_PREFIX ) );
-	strcat_s( fileName, sizeof( fileName ), adapterName );
+	err = strcat_s( fileName, sizeof( fileName ), adapterName );
+	if( err != 0 )
+	{
+		dlog( kDebugLevelAlert, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter name too long for device path\n" );
+		ok = FALSE;
+		goto exit;
+	}
     handle = CreateFileA( fileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, INVALID_HANDLE_VALUE );
 	require_action ( handle != INVALID_HANDLE_VALUE, exit, ok = FALSE );
 
