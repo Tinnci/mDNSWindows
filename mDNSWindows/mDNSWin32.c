@@ -2245,14 +2245,17 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	DWORD		namelen;
 	BOOL		ok;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: BEGIN - setting up nice name\n" );
 	check( inMDNS );
 	
 	// Set up the nice name.
 	utf8[0] = '\0';
 
 	// First try and open the registry key that contains the computer description value
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Opening registry key for computer description\n" );
 	s = TEXT("SYSTEM\\CurrentControlSet\\Services\\lanmanserver\\parameters");
 	err = RegOpenKeyEx( HKEY_LOCAL_MACHINE, s, 0, KEY_READ, &descKey);
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: RegOpenKeyEx returned err=%d\n", err );
 	check_translated_errno( err == 0, errno_compat(), kNameErr );
 
 	if ( !err )
@@ -2260,12 +2263,17 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 		TCHAR	desc[256];
 		DWORD	descSize = sizeof( desc );
 
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Querying computer description (buffer size=%d bytes)\n", descSize );
 		// look for the computer description
 		err = RegQueryValueEx( descKey, TEXT("srvcomment"), 0, NULL, (LPBYTE) &desc, &descSize);
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: RegQueryValueEx returned err=%d, descSize=%d\n", err, descSize );
 		
 		if ( !err )
 		{
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Converting TCHAR description to UTF8\n" );
 			err = TCHARtoUTF8( desc, utf8, sizeof( utf8 ) );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: TCHARtoUTF8 returned err=%d, utf8 len=%d\n", 
+				  err, utf8[0] ? (int)strlen(utf8) : 0 );
 		}
 
 		if ( err )
@@ -2279,15 +2287,22 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	{
 		TCHAR hostname[256];
 		
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Getting computer hostname (buffer size=%d TCHARs)\n", 
+			  sizeof(hostname) / sizeof(TCHAR) );
 		namelen = sizeof( hostname ) / sizeof( TCHAR );
 
 		ok = GetComputerNameExW( ComputerNamePhysicalDnsHostname, hostname, &namelen );
 		err = translate_errno( ok, (mStatus) GetLastError(), kNameErr );
+		dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: GetComputerNameExW returned ok=%d err=%d namelen=%d\n", 
+			  ok, err, namelen );
 		check_noerr( err );
 		
 		if( !err )
 		{
+			dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Converting TCHAR hostname to UTF8\n" );
 			err = TCHARtoUTF8( hostname, utf8, sizeof( utf8 ) );
+			dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: TCHARtoUTF8 returned err=%d, utf8 len=%d\n",
+				  err, utf8[0] ? (int)strlen(utf8) : 0 );
 		}
 
 		if ( err )
@@ -2299,12 +2314,14 @@ mStatus	SetupNiceName( mDNS * const inMDNS )
 	// if we can't get the hostname
 	if ( err || ( utf8[ 0 ] == '\0' ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupNiceName: Using default name '%s'\n", kMDNSDefaultName );
 		// Invalidate name so fall back to a default name.
 		
 		strcpy_s( utf8, sizeof( utf8 ), kMDNSDefaultName );
 	}
 
-	utf8[ sizeof( utf8 ) - 1 ]	= '\0';	
+	utf8[ sizeof( utf8 ) - 1 ]	= '\0';
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupNiceName: Final nice name='%s' len=%d\n", utf8, (int)strlen(utf8) );	
 	inMDNS->nicelabel.c[ 0 ]	= (mDNSu8) (strlen( utf8 ) < MAX_DOMAIN_LABEL ? strlen( utf8 ) : MAX_DOMAIN_LABEL);
 	memcpy( &inMDNS->nicelabel.c[ 1 ], utf8, inMDNS->nicelabel.c[ 0 ] );
 	
@@ -2355,34 +2372,42 @@ mDNSlocal mStatus	SetupHostName( mDNS * const inMDNS )
 	domainlabel tempLabel;
 	BOOL		ok;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: BEGIN - setting up host name\n" );
 	check( inMDNS );
 
 	// Set up the nice name.
 	tempString[ 0 ] = '\0';
 
 	// use the hostname of the machine
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Getting computer hostname (buffer size=%d bytes)\n", sizeof(tempString) );
 	tempStringLen = sizeof( tempString );
 	ok = GetComputerNameExA( ComputerNamePhysicalDnsHostname, tempString, &tempStringLen );
 	err = translate_errno( ok, (mStatus) GetLastError(), kNameErr );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: GetComputerNameExA returned ok=%d err=%d len=%d\n", 
+		  ok, err, tempStringLen );
 	check_noerr( err );
 
 	// if we can't get the hostname
 	if( err || ( tempString[ 0 ] == '\0' ) )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Using default name '%s'\n", kMDNSDefaultName );
 		// Invalidate name so fall back to a default name.
 		
 		strcpy_s( tempString, sizeof( tempString ), kMDNSDefaultName );
 	}
 
 	tempString[ sizeof( tempString ) - 1 ] = '\0';
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: Host name string='%s' len=%d\n", tempString, (int)strlen(tempString) );
 	tempLabel.c[ 0 ] = (mDNSu8) (strlen( tempString ) < MAX_DOMAIN_LABEL ? strlen( tempString ) : MAX_DOMAIN_LABEL );
 	memcpy( &tempLabel.c[ 1 ], tempString, tempLabel.c[ 0 ] );
 	
 	// Set up the host name.
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: Converting to RFC1034 host label\n" );
 	ConvertUTF8PstringToRFC1034HostLabel( tempLabel.c, &inMDNS->hostlabel );
 	if( inMDNS->hostlabel.c[ 0 ] == 0 )
 	{
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupHostName: No valid RFC1034 characters, using default\n" );
 		// Nice name has no characters that are representable as an RFC1034 name (e.g. Japanese) so use the default.
 		
 		MakeDomainLabelFromLiteralString( &inMDNS->hostlabel, kMDNSDefaultName );
@@ -2392,7 +2417,8 @@ mDNSlocal mStatus	SetupHostName( mDNS * const inMDNS )
 	
 	mDNS_SetFQDN( inMDNS );
 	
-	dlog( kDebugLevelInfo, DEBUG_NAME "host name \"%.*s\"\n", inMDNS->hostlabel.c[ 0 ], &inMDNS->hostlabel.c[ 1 ] );
+	dlog( kDebugLevelInfo, DEBUG_NAME "SetupHostName: Final host name=\"%.*s\"\n", inMDNS->hostlabel.c[ 0 ], &inMDNS->hostlabel.c[ 1 ] );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupHostName: END - returning err=%d\n", err );
 	
 	return( err );
 }
@@ -2405,14 +2431,20 @@ mDNSlocal mStatus	SetupName( mDNS * const inMDNS )
 {
 	mStatus		err = 0;
 	
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: BEGIN - setting up machine name\n" );
 	check( inMDNS );
 	
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupName: Calling SetupNiceName()\n" );
 	err = SetupNiceName( inMDNS );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: SetupNiceName() returned err=%d\n", err );
 	check_noerr( err );
 
+	dlog( kDebugLevelVerbose, DEBUG_NAME "SetupName: Calling SetupHostName()\n" );
 	err = SetupHostName( inMDNS );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: SetupHostName() returned err=%d\n", err );
 	check_noerr( err );
 
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupName: END - returning err=%d\n", err );
 	return err;
 }
 
@@ -2704,7 +2736,7 @@ mStatus	TearDownInterfaceList( mDNS * const inMDNS )
 	mDNSInterfaceData **		p;
 	mDNSInterfaceData *		ifd;
 	
-	dlog( kDebugLevelTrace, DEBUG_NAME "tearing down interface list\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "TearDownInterfaceList: BEGIN - tearing down interface list\n" );
 	check( inMDNS );
 	check( inMDNS->p );
 
