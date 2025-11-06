@@ -3,8 +3,20 @@ name: Windows Build
 on:
   push:
     branches: [ main, "feature/**", "win/**" ]
+    paths:
+      - 'mDNSWindows/**'
+      - 'mDNSCore/**'
+      - 'mDNSShared/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/windows-build.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'mDNSWindows/**'
+      - 'mDNSCore/**'
+      - 'mDNSShared/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/windows-build.yml'
 
 jobs:
   build:

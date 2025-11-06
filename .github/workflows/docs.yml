@@ -1,0 +1,39 @@
+name: Documentation Check
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'README.md'
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+      - '.github/workflows/docs.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'README.md'
+      - '*.md'
+      - 'docs/**'
+      - '.gitignore'
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Verify README exists
+      run: test -f README.md && echo "✓ README.md found"
+    
+    - name: Check markdown syntax
+      uses: nosborn/github-action-markdown-cli@v3.3.0
+      with:
+        files: .
+        config_file: '.markdownlint.json'
+      continue-on-error: true
+    
+    - name: Report documentation status
+      run: echo "✓ Documentation check completed"

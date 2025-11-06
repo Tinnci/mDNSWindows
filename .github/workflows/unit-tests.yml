@@ -3,8 +3,22 @@ name: Unit Tests
 on:
   push:
     branches: [ main, "feature/**", "win/**" ]
+    paths:
+      - 'mDNSWindows/**'
+      - 'mDNSCore/**'
+      - 'mDNSShared/**'
+      - 'unittests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/unit-tests.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'mDNSWindows/**'
+      - 'mDNSCore/**'
+      - 'mDNSShared/**'
+      - 'unittests/**'
+      - 'CMakeLists.txt'
+      - '.github/workflows/unit-tests.yml'
 
 jobs:
   test:
