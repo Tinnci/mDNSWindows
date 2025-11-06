@@ -2939,15 +2939,7 @@ mDNSlocal mStatus	SetupSocket( mDNS * const inMDNS, const struct sockaddr *inAdd
 	err = translate_errno( IsValidSocket( sock ), errno_compat(), kUnknownErr );
 	require_noerr( err, exit );
 		
-	// Turn on reuse address option so multiple servers can listen for Multicast DNS packets,
-	// if we're creating a multicast socket
-	
-	if ( !mDNSIPPortIsZero( port ) )
-	{
-		option = 1;
-		err = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *) &option, sizeof( option ) );
-		check_translated_errno( err == 0, errno_compat(), kOptionErr );
-	}
+
 
 	// <rdar://problem/7894393> Bonjour for Windows broken on Windows XP
 	//
@@ -2975,14 +2967,27 @@ mDNSlocal mStatus	SetupSocket( mDNS * const inMDNS, const struct sockaddr *inAdd
 		mDNSv4Addr				ipv4;
 		struct sockaddr_in		sa4;
 		struct ip_mreq			mreqv4;
+		mDNSBool				isMDNSPort;
+		
+		isMDNSPort = mDNSSameIPPort( port, MulticastDNSPort );
 		
 		// Bind the socket to the desired port
+		// For multicast sockets on port 5353, bind to INADDR_ANY to allow multiple processes
+		// to share the same multicast port using SO_REUSEADDR semantics
 		
 		ipv4.NotAnInteger 	= ( (const struct sockaddr_in *) inAddr )->sin_addr.s_addr;
 		mDNSPlatformMemZero( &sa4, sizeof( sa4 ) );
 		sa4.sin_family 		= AF_INET;
 		sa4.sin_port 		= port.NotAnInteger;
-		sa4.sin_addr.s_addr	= ipv4.NotAnInteger;
+		sa4.sin_addr.s_addr	= isMDNSPort ? htonl(INADDR_ANY) : ipv4.NotAnInteger;
+		
+		// Turn on reuse address option for mDNS port so multiple servers can listen
+		if ( isMDNSPort )
+		{
+			option = 1;
+			err = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *) &option, sizeof( option ) );
+			check_translated_errno( err == 0, errno_compat(), kOptionErr );
+		}
 		
 		err = bind( sock, (struct sockaddr *) &sa4, sizeof( sa4 ) );
 		check_translated_errno( err == 0, errno_compat(), kUnknownErr );
@@ -3033,17 +3038,29 @@ mDNSlocal mStatus	SetupSocket( mDNS * const inMDNS, const struct sockaddr *inAdd
 		struct sockaddr_in6 *		sa6p;
 		struct sockaddr_in6			sa6;
 		struct ipv6_mreq			mreqv6;
+		mDNSBool					isMDNSPort;
 		
 		sa6p = (struct sockaddr_in6 *) inAddr;
+		isMDNSPort = mDNSSameIPPort( port, MulticastDNSPort );
 		
 		// Bind the socket to the desired port
+		// For multicast sockets on port 5353, bind to in6addr_any to allow multiple processes
+		// to share the same multicast port using SO_REUSEADDR semantics
 		
 		mDNSPlatformMemZero( &sa6, sizeof( sa6 ) );
 		sa6.sin6_family		= AF_INET6;
 		sa6.sin6_port		= port.NotAnInteger;
 		sa6.sin6_flowinfo	= 0;
-		sa6.sin6_addr		= sa6p->sin6_addr;
+		sa6.sin6_addr		= isMDNSPort ? in6addr_any : sa6p->sin6_addr;
 		sa6.sin6_scope_id	= sa6p->sin6_scope_id;
+		
+		// Turn on reuse address option for mDNS port so multiple servers can listen
+		if ( isMDNSPort )
+		{
+			option = 1;
+			err = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *) &option, sizeof( option ) );
+			check_translated_errno( err == 0, errno_compat(), kOptionErr );
+		}
 		
 		err = bind( sock, (struct sockaddr *) &sa6, sizeof( sa6 ) );
 		check_translated_errno( err == 0, errno_compat(), kUnknownErr );
@@ -4170,20 +4187,35 @@ mDNSlocal mDNSBool	CanReceiveUnicast( void )
 	mDNSBool				ok;
 	SocketRef				sock;
 	struct sockaddr_in		addr;
+	int						option;
+	int						err;
 	
-	// Try to bind to the port without the SO_REUSEADDR option to test if someone else has already bound to it.
+	// Try to bind to the port with SO_REUSEADDR to enable shared multicast socket semantics.
+	// This allows multiple processes (e.g., Dnscache, Chrome, this service) to coexist on port 5353.
 	
 	sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
 	check_translated_errno( IsValidSocket( sock ), errno_compat(), kUnknownErr );
 	ok = IsValidSocket( sock );
 	if( ok )
 	{
-		mDNSPlatformMemZero( &addr, sizeof( addr ) );
-		addr.sin_family			= AF_INET;
-		addr.sin_port			= MulticastDNSPort.NotAnInteger;
-		addr.sin_addr.s_addr	= htonl( INADDR_ANY );
+		// Set SO_REUSEADDR to allow shared multicast socket binding
+		option = 1;
+		err = setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *) &option, sizeof( option ) );
+		check_translated_errno( err == 0, errno_compat(), kOptionErr );
 		
-		ok = ( bind( sock, (struct sockaddr *) &addr, sizeof( addr ) ) == 0 );
+		if( err == 0 )
+		{
+			mDNSPlatformMemZero( &addr, sizeof( addr ) );
+			addr.sin_family			= AF_INET;
+			addr.sin_port			= MulticastDNSPort.NotAnInteger;
+			addr.sin_addr.s_addr	= htonl( INADDR_ANY );
+			
+			ok = ( bind( sock, (struct sockaddr *) &addr, sizeof( addr ) ) == 0 );
+		}
+		else
+		{
+			ok = mDNSfalse;
+		}
 		close_compat( sock );
 	}
 	
