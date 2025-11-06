@@ -4174,20 +4174,31 @@ mDNSlocal mDNSBool	CanReceiveUnicast( void )
 	mDNSBool				ok;
 	SocketRef				sock;
 	struct sockaddr_in		addr;
+	int						option;
 	
-	// Try to bind to the port without the SO_REUSEADDR option to test if someone else has already bound to it.
+	// Try to bind to the port with SO_REUSEADDR to enable shared multicast socket semantics.
+	// This allows multiple processes (e.g., Dnscache, Chrome, this service) to coexist on port 5353.
 	
 	sock = socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
 	check_translated_errno( IsValidSocket( sock ), errno_compat(), kUnknownErr );
 	ok = IsValidSocket( sock );
 	if( ok )
 	{
-		mDNSPlatformMemZero( &addr, sizeof( addr ) );
-		addr.sin_family			= AF_INET;
-		addr.sin_port			= MulticastDNSPort.NotAnInteger;
-		addr.sin_addr.s_addr	= htonl( INADDR_ANY );
-		
-		ok = ( bind( sock, (struct sockaddr *) &addr, sizeof( addr ) ) == 0 );
+		// Set SO_REUSEADDR to allow shared multicast socket binding
+		option = 1;
+		if( setsockopt( sock, SOL_SOCKET, SO_REUSEADDR, (char *) &option, sizeof( option ) ) != 0 )
+		{
+			ok = mDNSfalse;
+		}
+		else
+		{
+			mDNSPlatformMemZero( &addr, sizeof( addr ) );
+			addr.sin_family			= AF_INET;
+			addr.sin_port			= MulticastDNSPort.NotAnInteger;
+			addr.sin_addr.s_addr	= htonl( INADDR_ANY );
+			
+			ok = ( bind( sock, (struct sockaddr *) &addr, sizeof( addr ) ) == 0 );
+		}
 		close_compat( sock );
 	}
 	
