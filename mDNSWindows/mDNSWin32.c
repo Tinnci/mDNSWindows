@@ -2738,7 +2738,9 @@ mDNSlocal mStatus	SetupInterface( mDNS * const inMDNS, const struct ifaddrs *inI
 	mStatus					err;
 	
 	ifd = NULL;
-	dlog( kDebugLevelTrace, DEBUG_NAME "setting up interface\n" );
+	dlog( kDebugLevelTrace, DEBUG_NAME "SetupInterface: interface='%s' index=%u\n",
+		  inIFA->ifa_name ? inIFA->ifa_name : "(null)", 
+		  ( unsigned int ) inIFA->ifa_extra.index );
 	check( inMDNS );
 	check( inMDNS->p );
 	check( inIFA );
@@ -2755,6 +2757,20 @@ mDNSlocal mStatus	SetupInterface( mDNS * const inMDNS, const struct ifaddrs *inI
 	ifd->sock.m		= inMDNS;
 	ifd->index		= inIFA->ifa_extra.index;
 	ifd->scopeID	= inIFA->ifa_extra.index;
+	
+	// Enhanced logging for debugging buffer issues
+	if( inIFA->ifa_name )
+	{
+		size_t nameLen = strlen( inIFA->ifa_name );
+		dlog( kDebugLevelVerbose, DEBUG_NAME "SetupInterface: copying interface name len=%d (buffer size=%d)\n",
+			  ( int ) nameLen, ( int ) sizeof( ifd->name ) );
+		if( nameLen >= sizeof( ifd->name ) )
+		{
+			dlog( kDebugLevelAlert, DEBUG_NAME "SetupInterface: interface name too long! len=%d >= buffer=%d\n",
+				  ( int ) nameLen, ( int ) sizeof( ifd->name ) );
+		}
+	}
+	
 	check( strlen( inIFA->ifa_name ) < sizeof( ifd->name ) );
 	strncpy( ifd->name, inIFA->ifa_name, sizeof( ifd->name ) - 1 );
 	ifd->name[ sizeof( ifd->name ) - 1 ] = '\0';
@@ -5053,18 +5069,24 @@ IsWOMPEnabledForAdapter( const char * adapterName )
 
 	require_action( adapterName != NULL, exit, ok = FALSE );
 
-	dlog( kDebugLevelTrace, DEBUG_NAME "IsWOMPEnabledForAdapter: %s\n", adapterName );
+	// Enhanced logging for debugging secondary overflow (offset 0x51875)
+	dlog( kDebugLevelTrace, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter='%s' len=%d\n", 
+		  adapterName, ( int ) strlen( adapterName ) );
 	
     // Construct a device name to pass to CreateFile
+	// fileName buffer is 256 bytes: DEVICE_PREFIX (4 bytes) + adapterName (max 251 bytes)
 
 	strncpy_s( fileName, sizeof( fileName ), DEVICE_PREFIX, strlen( DEVICE_PREFIX ) );
 	err = strcat_s( fileName, sizeof( fileName ), adapterName );
 	if( err != 0 )
 	{
-		dlog( kDebugLevelAlert, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter name too long for device path\n" );
+		dlog( kDebugLevelAlert, DEBUG_NAME "IsWOMPEnabledForAdapter: adapter name too long for device path (len=%d)\n",
+			  ( int ) strlen( adapterName ) );
 		ok = FALSE;
 		goto exit;
 	}
+	dlog( kDebugLevelVerbose, DEBUG_NAME "IsWOMPEnabledForAdapter: constructed device path='%s' len=%d\n",
+		  fileName, ( int ) strlen( fileName ) );
     handle = CreateFileA( fileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, INVALID_HANDLE_VALUE );
 	require_action ( handle != INVALID_HANDLE_VALUE, exit, ok = FALSE );
 
