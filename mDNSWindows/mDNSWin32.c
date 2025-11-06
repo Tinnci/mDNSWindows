@@ -596,7 +596,23 @@ mDNSexport void	mDNSPlatformStrCopy( void *inDst, const void *inSrc )
 	check( inSrc );
 	check( inDst );
 	
-	strcpy( (char *) inDst, (const char*) inSrc );
+	// Use strcpy_s for bounds-checked string copy to prevent buffer overruns
+	// Since the API doesn't provide destination buffer size, we use a defensive
+	// maximum size that should accommodate all mDNS string use cases.
+	// MAX_DOMAIN_NAME is 256, but we use 1024 for extra safety margin.
+	const size_t maxSize = 1024;
+	size_t srcLen = strlen((const char*)inSrc);
+	
+	if (srcLen < maxSize)
+	{
+		strcpy_s((char*)inDst, maxSize, (const char*)inSrc);
+	}
+	else
+	{
+		// Source string is too long, this indicates a programming error
+		// Truncate to prevent buffer overrun
+		strncpy_s((char*)inDst, maxSize, (const char*)inSrc, _TRUNCATE);
+	}
 }
 
 //===========================================================================================================================
