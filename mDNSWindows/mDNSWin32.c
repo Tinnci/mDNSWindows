@@ -5043,7 +5043,7 @@ IsWOMPEnabled( mDNS * const m )
 mDNSlocal mDNSu8
 IsWOMPEnabledForAdapter( const char * adapterName )
 {
-	char						fileName[80];
+	char						fileName[256];
 	NDIS_OID					oid;
     DWORD						count;
     HANDLE						handle	= INVALID_HANDLE_VALUE;
@@ -5057,8 +5057,10 @@ IsWOMPEnabledForAdapter( const char * adapterName )
 	
     // Construct a device name to pass to CreateFile
 
-	strncpy_s( fileName, sizeof( fileName ), DEVICE_PREFIX, strlen( DEVICE_PREFIX ) );
-	strcat_s( fileName, sizeof( fileName ), adapterName );
+	err = strcpy_s( fileName, sizeof( fileName ), DEVICE_PREFIX );
+	require_action( err == 0, exit, ok = FALSE );
+	err = strcat_s( fileName, sizeof( fileName ), adapterName );
+	require_action( err == 0, exit, ok = FALSE );
     handle = CreateFileA( fileName, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, INVALID_HANDLE_VALUE );
 	require_action ( handle != INVALID_HANDLE_VALUE, exit, ok = FALSE );
 

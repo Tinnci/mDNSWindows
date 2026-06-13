@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.4...3.27)  #3.4 handles Manifest files better t
 project(mDNSWindows)
 
 if(MSVC)
-  add_compile_options(/W4 /utf-8)
+  add_compile_options(/W4 /utf-8 /GS)  # /GS enables stack buffer security checks
   add_definitions(-D_CRT_SECURE_NO_WARNINGS -DWIN32_LEAN_AND_MEAN)
 elseif("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   add_compile_options(-Wall -Wconversion)
